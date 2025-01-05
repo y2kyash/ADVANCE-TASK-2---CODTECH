@@ -1,0 +1,86 @@
+import requests
+from bs4 import BeautifulSoup
+import tkinter as tk
+from tkinter import messagebox, scrolledtext
+import urllib.parse
+
+class WebAppScanner:
+    def __init__(self, url, output_widget):
+        self.url = url
+        self.session = requests.Session()
+        self.output_widget = output_widget
+
+    def log_output(self, message):
+        self.output_widget.insert(tk.END, message + "\n")
+        self.output_widget.see(tk.END)
+
+    def send_request(self, url):
+        #Helper function to send HTTP requests and get response
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as e:
+            self.log_output(f"Error with request: {e}")
+            return None
+
+    def scan_sql_injection(self):
+        #Check for SQL Injection vulnerability
+        self.log_output("Scanning for SQL Injection...")
+        payloads = ["' OR '1'='1", "' OR '1'='1' --", '" OR 1=1 --']
+        for payload in payloads:
+            url = self.url + payload
+            response = self.send_request(url)
+            if response and "error" in response.text.lower():
+                self.log_output(f"Potential SQL Injection found at {url}")
+                return
+        self.log_output("No SQL Injection vulnerabilities detected.")
+
+    def scan_xss(self):
+        #Check for XSS vulnerabilities
+        self.log_output("Scanning for XSS...")
+        payload = "<script>alert('XSS')</script>"
+        url = self.url + "?search=" + urllib.parse.quote(payload)
+        response = self.send_request(url)
+        if response and payload in response.text:
+            self.log_output(f"Potential XSS vulnerability found at {url}")
+        else:
+            self.log_output("No XSS vulnerabilities detected.")
+    
+    def start_scan(self):
+        #Run the full vulnerability scan
+        self.log_output(f"Starting scan for {self.url}")
+        self.scan_sql_injection()
+        self.scan_xss()
+        self.log_output("Scan completed.")
+
+def start_scanning():
+    url = url_entry.get()
+    if not url.startswith("http://") and not url.startswith("https://"):
+        messagebox.showerror("Invalid URL", "Please enter a valid URL starting with http:// or https://")
+        return
+    
+    scanner = WebAppScanner(url, output_text)
+    scanner.start_scan()
+
+# Create the GUI
+root = tk.Tk()
+root.title("Web Application Vulnerability Scanner")
+root.geometry("600x400")
+
+# URL Input
+tk.Label(root, text="Target URL:").pack(pady=5)
+url_entry = tk.Entry(root, width=50)
+url_entry.pack(pady=5)
+
+# Scan Button
+scan_button = tk.Button(root, text="Start Scan", command=start_scanning)
+scan_button.pack(pady=10)
+
+# Output Textbox
+tk.Label(root, text="Scan Output:").pack(pady=5)
+output_text = scrolledtext.ScrolledText(root, width=70, height=15)
+output_text.pack(pady=5)
+
+# Run the GUI
+root.mainloop()
